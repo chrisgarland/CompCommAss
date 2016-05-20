@@ -1,0 +1,16 @@
+compile			= "assignment-template.c"
+
+bandwidth		= 56Kbps,
+
+messagerate             = 1000ms,
+
+host perth {
+    winx=0, winy=50
+    link to sydney {
+    }
+}
+
+host sydney {
+    winx=550, winy=50
+    east east east east east of perth
+}

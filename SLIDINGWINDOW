@@ -1,0 +1,41 @@
+compile                 = "assignment.c"
+
+bandwidth               = 56Kbps,
+
+messagerate             = 1000ms,
+
+host Indonesia {
+        x = 400, y = 200
+        link to Australia
+        link to Brunei
+        link to Malaysia
+        link to Singapore
+}
+
+host Australia {
+        east east of Indonesia
+        link to Fiji
+        link to New_Zealand
+}
+
+host Brunei {
+        north east of Indonesia
+}
+
+host Malaysia {
+        north west west of Indonesia
+        link to Singapore
+}
+
+host Singapore {
+        west west west of Indonesia
+}
+
+host Fiji {
+        north east of Australia
+}
+
+host New_Zealand {
+        east of Australia
+        link to Australia
+}
