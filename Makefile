@@ -1,3 +1,3 @@
 clean:
-	rm -rf *.cnet *.o
+	rm -rf *.cnet *.o logfile
 

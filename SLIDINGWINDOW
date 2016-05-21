@@ -1,4 +1,4 @@
-compile                 = "assignment.c"
+compile                 = "assignment-template.c"
 
 bandwidth               = 56Kbps,
 

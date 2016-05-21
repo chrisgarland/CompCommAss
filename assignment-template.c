@@ -1,6 +1,9 @@
 #include "./template.h"
+#include <stdlib.h>
 
-/************************************************************************ 
+#define FRAME_HEADER_SIZE  ((sizeof(Frame_T)) - (sizeof(Msg_T)))
+#define FRAME_SIZE(f)      ((FRAME_HEADER_SIZE) + (f.payload.msg_length))
+/*******************************************************************************
     
     Sample template for CC200 assignment
 
@@ -17,10 +20,21 @@
     Note that this simple ``protocol'' will not work if there is corruption
     on the link (probframecorrupt != 0). Can you see why?
 
-    Note that this simple 'protocol' only send message to a fix destination, so you
-    need to (MUST) modify the code to enable different destination node.
+    Note that this simple 'protocol' only send message to a fix destination, so 
+    you need to (MUST) modify the code to enable different destination node.
 
-***********************************************************************************/
+*******************************************************************************/
+static int              seqno           = 0;
+
+int routing_table[NUM_NODES][NUM_NODES] = {
+        {0, 1, 2, 3, 4, 1, 1},
+        {1, 0, 1, 1, 1, 2, 3},
+        {1, 1, 0, 1, 1, 1, 1},
+        {1, 1, 1, 0, 2, 1, 1},
+        {1, 1, 1, 2, 0, 1, 1}, 
+        {1, 1, 1, 1, 1, 0, 1},
+        {1, 1, 1, 1, 1, 1, 0}
+};
 
 static void prompt(int inc)
 {
@@ -41,29 +55,37 @@ static void prompt(int inc)
 
 static void keyboard(CnetEvent ev, CnetTimerID timer, CnetData data)
 {
-    char        line[80];
-    size_t      length;
+        CnetAddr        src;
+        CnetAddr        dest            = nodeinfo.nodenumber;
+        Msg_T           msg;
+        size_t          length;
 
-    length	= sizeof(line);
-    CHECK(CNET_read_keyboard(line, &length));
+        src = nodeinfo.nodenumber;
+        while(dest == nodeinfo.nodenumber)
+                dest = CNET_rand() % NUM_NODES;
 
-    if(length > 1) {			/* not just a blank line? */
-	printf("\tsending %d bytes - \"%s\"\n", length, line);
-	/*CHECK(CNET_write_physical(1, line, &length));*/
-	application_downto_transport(1, line, &length);
-	prompt(1);
-    }
-    else
-	prompt(0);
+        length	= sizeof(msg.data);
+        CHECK(CNET_read_keyboard(msg.data, &length));
+
+        if(length > 1) {			/* not just a blank msg? */
+                printf("\tsending %d bytes - \"%s\" to node: %d\n", length, 
+                                msg.data, dest);
+                /*CHECK(CNET_write_physical(1, msg, &length));*/
+                application_downto_transport(dest, msg, length);
+                prompt(1);
+        }
+        else {
+                prompt(0);
+        }
 }
 
-void transport_upto_application(int *link, char* msg, size_t* length )
+void transport_upto_application(int *link, char* msg, size_t length )
 {
    /*
     * NOTE: received msg from transport layer...  
     *
     */
-    printf("\treceived %d bytes on link %d - \"%s\"\n",*length,*link,msg);
+    printf("\treceived %d bytes on link %d - \"%s\"\n",length,*link,msg);
     prompt(0);
 }
 
@@ -82,6 +104,11 @@ static void application_ready(CnetEvent ev, CnetTimerID timer, CnetData data)
 }
 */
 
+
+
+
+
+
 /**************************************************************************** 
  * Transport layer 
  * 
@@ -94,7 +121,7 @@ static void application_ready(CnetEvent ev, CnetTimerID timer, CnetData data)
  *
  *****************************************************************************/
 
-void application_downto_transport(int link, char *msg, size_t *length)
+void application_downto_transport(CnetAddr dest, Msg_T msg, size_t length)
 {
    /*
     * Construct segment
@@ -106,10 +133,10 @@ void application_downto_transport(int link, char *msg, size_t *length)
     /*
      * Note: Should hand Segment and destination to the network layer
      */
-    transport_downto_network(1, msg, length);
+    transport_downto_network(dest, msg, length);
 }
 
-void network_upto_transport(int *link, char* segment, size_t* length )
+void network_upto_transport(int *link, char* segment, size_t length )
 {
     /*
      * NOTE: retrieve msg from Segment here & pass it backup to
@@ -118,6 +145,11 @@ void network_upto_transport(int *link, char* segment, size_t* length )
      */
     transport_upto_application(link, segment, length );
 }
+
+
+
+
+
 
 /*****************************************************************************
  * Network layer
@@ -131,31 +163,44 @@ void network_upto_transport(int *link, char* segment, size_t* length )
  *
  *****************************************************************************/
 
-void transport_downto_network(int link, char *msg, size_t *length)
+void transport_downto_network(CnetAddr dest, Msg_T msg, size_t length)
 {
-   /*
-    * Construct packet/datagram 
-    *
-    * NOTE: encapsulate segment into packet here... 
-    *
-    */
+        Packet_T packet;
+        int      link;
 
-    /*
-     * Note: Should hand Packet and link number to data link level
-     */
-    network_downto_datalink(1, msg, length);
+        memcpy(&packet.msg, &msg, sizeof(msg));
+        
+        packet.src_addr   = nodeinfo.nodenumber;
+        packet.dest_addr  = dest;
+        packet.msg_length = length;
+        link              = routing_table[nodeinfo.nodenumber][dest];
+
+        network_downto_datalink(link, packet, length);
 }
 
 
-void datalink_upto_network(int *link, char* packet, size_t* length )
+void datalink_upto_network(int link, Packet_T packet, size_t length )
 {
-   /*
-    * NOTE: retrieve Segment from Packet here & pass it backup to 
-    * the transport layer.   
-    *
-    */
-    network_upto_transport(link, packet, length );
+        int     src     = (int) packet.src_addr;
+        int     dest    = (int) packet.dest_addr;
+
+
+        if (dest == nodeinfo.nodenumber) {
+                printf("Pkt received: src=%zu, dest=%zu\n", packet.src_addr,
+                                                          packet.dest_addr);
+                network_upto_transport(&link, packet.msg.data, length );
+        }
+        else { 
+                printf("src=%d, dest=%d\n", src, dest);
+                printf("Fwd packet...\n");
+                link = routing_table[nodeinfo.nodenumber][dest];
+                system("echo bam");
+                network_downto_datalink(link, packet, length);
+        }
 }
+
+
+
 
 /*****************************************************************************
  * Data Link Layer 
@@ -168,40 +213,71 @@ void datalink_upto_network(int *link, char* packet, size_t* length )
  *       Frame <- (data link layer header) + (Packet)
  *
  *
- *****************************************************************************/
+ ******************************************************************************/
 
-void network_downto_datalink(int link, char *msg, size_t *length)
+void network_downto_datalink(int link, Packet_T packet, size_t length)
 {
-   /*
-    * NOTE: encapsulate packet/datagrame into Frame here...  
-    *
-    */
+        Frame_T frame;
 
-   /*
-    * Pass Frame to the CNET physical layer to send Frame to the require link.
-    */
-   CHECK(CNET_write_physical(1, msg, length));
+        memcpy(&frame.payload, &packet, sizeof(packet));
+        frame.kind      = DL_DATA;
+        frame.checksum  = 0;
+        frame.seq       = seqno;
+        FILE*           f           = fopen("logfile", "a");
+
+        fprintf(f, "network_dt_datalink():\nsrc_addr=%d\ndest_addr=%d\nkind=%d\n"
+                        "chsum=%d\nseq=%d\n"
+                        "msg=%s\n\n", 
+                        frame.payload.src_addr,
+                        frame.payload.dest_addr,
+                        frame.kind,
+                        frame.checksum,
+                        frame.seq,
+                        frame.payload.msg.data);
+        fclose(f);
+
+        length = FRAME_SIZE(frame);
+        frame.checksum  = CNET_ccitt((unsigned char *)&frame, (int)length);
+        CHECK(CNET_write_physical(link, (void*)&frame, &length));
 }
 
 static void frame_arrived(CnetEvent ev, CnetTimerID timer, CnetData data)
 {
-    char frame[256];
-    int  link;
-    size_t length;
+        FILE*           f           = fopen("logfile", "a");
+        Frame_T         frame;
+        int             link, kind;
+        size_t          length;
 
-   /*
-    * NOTE: retrieve Frame from the CNET physical layer.
-    *
-    */
-    length = sizeof(frame);
-    CHECK(CNET_read_physical(&link, frame, &length));
-    
-   /*
-    * NOTE: retrieve packet from the Frame & pass it backup to the network layer.   
-    *
-    */
-    datalink_upto_network(&link, frame, &length );
+        length = sizeof(Frame_T);
+
+        CHECK(CNET_read_physical(&link, (char*)&frame, &length));
+
+        fprintf(f, "frame_arrived():\nsrc_addr=%d\ndest_addr=%d\nkind=%d\n"
+                        "chsum=%d\nseq=%d\n"
+                        "msg=%s\n\n", 
+                        frame.payload.src_addr,
+                        frame.payload.dest_addr,
+                        frame.kind,
+                        frame.checksum,
+                        frame.seq,
+                        frame.payload.msg.data);
+        fclose(f);
+
+        kind = (int) frame.kind; 
+
+        printf("fr arr from src=%d, dest=%d\n", frame.payload.src_addr,
+                                                       frame.payload.dest_addr);
+        if (kind == DL_DATA) {
+                datalink_upto_network(link, frame.payload, length );
+        } 
+        else {
+                printf("ACK received, seq=%d\n", frame.seq);
+        }
 }
+
+
+
+
 
 
 /*************************************************************************
@@ -212,21 +288,20 @@ static void frame_arrived(CnetEvent ev, CnetTimerID timer, CnetData data)
 
 void reboot_host()
 {
-
     /*  Indicate our interest in certain cnet events */
-    printf("Initialising current node as a host.\n");
+        printf("Initialising current node as a host.\n");
     
     /* When everything is working properly, you can uncomment this to
      * let the application layer generate the messages for you 
      */
-    /*CHECK(CNET_set_handler( EV_APPLICATIONREADY, application_ready, 0));*/
+        /*CHECK(CNET_set_handler( EV_APPLICATIONREADY, application_ready, 0));*/
 
-    /* right now, read from the keyboard only */
-    CHECK(CNET_set_handler( EV_KEYBOARDREADY, keyboard, 0));
-    CHECK(CNET_set_handler( EV_PHYSICALREADY, frame_arrived, 0));
+        /* right now, read from the keyboard only */
+        CHECK(CNET_set_handler( EV_KEYBOARDREADY, keyboard, 0));
+        CHECK(CNET_set_handler( EV_PHYSICALREADY, frame_arrived, 0));
 
     /* CNET_enable_application(ALLNODES);*/
-    prompt(1);
+        prompt(1);
 }
 
 void reboot_router()
@@ -242,15 +317,15 @@ void reboot_router()
 
 void reboot_node(CnetEvent ev, CnetTimerID timer, CnetData data)
 {
-
+        
     printf("Hello world, this is node %d\n", nodeinfo.nodenumber);
 
     /* CODE to define HOST from ROUTER */
-    if (nodeinfo.nlinks == 1)
+    /*if (nodeinfo.nlinks == 1)*/
         reboot_host();
-    else if (nodeinfo.nlinks > 1)
-        reboot_router();
-    else
-        printf("Is there anybody out there ?\n");
+    /*else if (nodeinfo.nlinks > 1)*/
+        /*reboot_router();*/
+    /*else*/
+        /*printf("Is there anybody out there ?\n");*/
 }
 
