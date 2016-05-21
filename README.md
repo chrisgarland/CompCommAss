@@ -1,2 +1,2 @@
 # CompCommAss
-Computer Communications Assignment (cnet)
+Computer Communications Assignment: CNET Network Simulation 
