@@ -44,6 +44,42 @@ static void prompt(int inc)
     printf("%s.%d> ", nodeinfo.nodename, n);
 }
 
+
+
+
+
+static void transmit_frame(int link, Frame_T f, size_t length)
+{
+        switch (f.kind) {
+        case DL_ACK :
+                if (f.payload.src_addr == nodeinfo.nodenumber)
+                        printf("\t\t\t\t\t\tACK transmitted, seq=%d\n", 
+                                                                seqno);
+	        break;
+
+        case DL_DATA: {
+                /*CnetTime	timeout;*/
+                if (f.payload.src_addr == nodeinfo.nodenumber)
+                        printf(" DATA transmitted, seq=%d\n", seqno);
+                /*memcpy(&f.msg, (char *)msg, (int)length);*/
+
+		/*timeout = FRAME_SIZE(f)*((CnetTime)8000000 */
+                            /*/ linkinfo[link].bandwidth) + */
+                            /*linkinfo[link].propagationdelay;*/
+
+                /*lasttimer = CNET_start_timer(EV_TIMER1, 3 * timeout, 0);*/
+	        break;
+        }
+        }
+            length      = FRAME_SIZE(f);
+            f.checksum  = CNET_ccitt((unsigned char *)&f, (int)length);
+            CHECK(CNET_write_physical(link, (char *)&f, &length));
+}
+
+
+
+
+
 /***************************************************************************
  * Application Layer 
  *
@@ -191,10 +227,8 @@ void datalink_upto_network(int link, Packet_T packet, size_t length )
                 network_upto_transport(&link, packet.msg.data, length );
         }
         else { 
-                printf("src=%d, dest=%d\n", src, dest);
-                printf("Fwd packet...\n");
+                printf("Relay packet: src=%zu, dest=%zu\n", src, dest);
                 link = routing_table[nodeinfo.nodenumber][dest];
-                system("echo bam");
                 network_downto_datalink(link, packet, length);
         }
 }
@@ -223,55 +257,52 @@ void network_downto_datalink(int link, Packet_T packet, size_t length)
         frame.kind      = DL_DATA;
         frame.checksum  = 0;
         frame.seq       = seqno;
-        FILE*           f           = fopen("logfile", "a");
 
-        fprintf(f, "network_dt_datalink():\nsrc_addr=%d\ndest_addr=%d\nkind=%d\n"
-                        "chsum=%d\nseq=%d\n"
-                        "msg=%s\n\n", 
-                        frame.payload.src_addr,
-                        frame.payload.dest_addr,
-                        frame.kind,
-                        frame.checksum,
-                        frame.seq,
-                        frame.payload.msg.data);
-        fclose(f);
-
-        length = FRAME_SIZE(frame);
-        frame.checksum  = CNET_ccitt((unsigned char *)&frame, (int)length);
-        CHECK(CNET_write_physical(link, (void*)&frame, &length));
+        transmit_frame(link, frame, length);
 }
 
 static void frame_arrived(CnetEvent ev, CnetTimerID timer, CnetData data)
 {
-        FILE*           f           = fopen("logfile", "a");
         Frame_T         frame;
-        int             link, kind;
+        int             link, kind, dest;
         size_t          length;
 
-        length = sizeof(Frame_T);
+        length          = sizeof(Frame_T);
 
         CHECK(CNET_read_physical(&link, (char*)&frame, &length));
-
-        fprintf(f, "frame_arrived():\nsrc_addr=%d\ndest_addr=%d\nkind=%d\n"
-                        "chsum=%d\nseq=%d\n"
-                        "msg=%s\n\n", 
-                        frame.payload.src_addr,
-                        frame.payload.dest_addr,
-                        frame.kind,
-                        frame.checksum,
-                        frame.seq,
-                        frame.payload.msg.data);
-        fclose(f);
-
+        
+        dest = frame.payload.dest_addr;
         kind = (int) frame.kind; 
 
-        printf("fr arr from src=%d, dest=%d\n", frame.payload.src_addr,
-                                                       frame.payload.dest_addr);
-        if (kind == DL_DATA) {
-                datalink_upto_network(link, frame.payload, length );
-        } 
-        else {
-                printf("ACK received, seq=%d\n", frame.seq);
+        switch (kind) {
+        case DL_DATA: {
+                if (dest == nodeinfo.nodenumber) {
+                        datalink_upto_network(link, frame.payload, length );
+                        frame.kind = DL_ACK;
+                        frame.payload.dest_addr = frame.payload.src_addr;
+                        frame.payload.src_addr  = nodeinfo.nodenumber;
+                        transmit_frame(link, frame, length);
+                }
+                else {
+                        datalink_upto_network(link, frame.payload, length );
+                }
+
+                break;
+        }         
+        case DL_ACK: {
+                if (frame.payload.dest_addr != nodeinfo.nodenumber) {
+                        int dest_idx = frame.payload.dest_addr;
+                        link = routing_table[nodeinfo.nodenumber][dest_idx];
+                        transmit_frame(link, frame, length);
+                }
+                else {
+                        printf("\t\t\t\t\t\tACK received, seq=%d,"
+                                        "src=%zu\n", 
+                                        frame.seq, 
+                                        frame.payload.src_addr);
+                }
+                break; 
+        }
         }
 }
 
