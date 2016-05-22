@@ -1,8 +1,7 @@
 compile                 = "assignment.c"
-
 bandwidth               = 56Kbps,
-
-messagerate             = 1000ms,
+messagerate             = 5000ms,
+maxmessagesize          = 256bytes
 
 host Indonesia {
         x = 400, y = 200

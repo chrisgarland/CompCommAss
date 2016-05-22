@@ -78,6 +78,7 @@ typedef struct {
 void reboot_host();
 void reboot_router();
 static void prompt(int);
+static void transmit_frame(int link, Frame_T f, size_t length);
 
 /* Data Link Layer */
 void network_downto_datalink(int link, Packet_T packet, size_t length);
@@ -92,5 +93,7 @@ void application_downto_transport( CnetAddr, Msg_T, size_t );
 void network_upto_transport( int*, char*, size_t );
 
 /* Application Layer */
-static void keyboard(CnetEvent, CnetTimerID, CnetData );
+//static void keyboard(CnetEvent, CnetTimerID, CnetData );
 void transport_upto_application(int*, char*, size_t );
+static void application_ready(CnetEvent ev, CnetTimerID timer, CnetData data);
+

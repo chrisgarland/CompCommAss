@@ -89,31 +89,30 @@ static void transmit_frame(int link, Frame_T f, size_t length)
  *
  ****************************************************************************/
 
-static void keyboard(CnetEvent ev, CnetTimerID timer, CnetData data)
-{
-        CnetAddr        src;
-        CnetAddr        dest            = nodeinfo.nodenumber;
-        Msg_T           msg;
-        size_t          length;
+/*static void keyboard(CnetEvent ev, CnetTimerID timer, CnetData data)*/
+/*{*/
+        /*CnetAddr        src;*/
+        /*CnetAddr        dest            = nodeinfo.nodenumber;*/
+        /*Msg_T           msg;*/
+        /*size_t          length;*/
 
-        src = nodeinfo.nodenumber;
-        while(dest == nodeinfo.nodenumber)
-                dest = CNET_rand() % NUM_NODES;
+        /*src = nodeinfo.nodenumber;*/
+        /*while(dest == nodeinfo.nodenumber)*/
+                /*dest = CNET_rand() % NUM_NODES;*/
 
-        length	= sizeof(msg.data);
-        CHECK(CNET_read_keyboard(msg.data, &length));
+        /*length	= sizeof(msg.data);*/
+        /*CHECK(CNET_read_keyboard(msg.data, &length));*/
 
-        if(length > 1) {			/* not just a blank msg? */
-                printf("\tsending %d bytes - \"%s\" to node: %d\n", length, 
-                                msg.data, dest);
-                /*CHECK(CNET_write_physical(1, msg, &length));*/
-                application_downto_transport(dest, msg, length);
-                prompt(1);
-        }
-        else {
-                prompt(0);
-        }
-}
+        /*if(length > 1) {			[> not just a blank msg? <]*/
+                /*printf("\tsending %d bytes - \"%s\" to node: %d\n", length, */
+                                /*msg.data, dest);*/
+                /*application_downto_transport(dest, msg, length);*/
+                /*prompt(1);*/
+        /*}*/
+        /*else {*/
+                /*prompt(0);*/
+        /*}*/
+/*}*/
 
 void transport_upto_application(int *link, char* msg, size_t length )
 {
@@ -125,20 +124,33 @@ void transport_upto_application(int *link, char* msg, size_t length )
     prompt(0);
 }
 
-/*
+
 static void application_ready(CnetEvent ev, CnetTimerID timer, CnetData data)
 {
-    char msg[MAX_MESSAGE_SIZE];
-    int length;
-    CnetAddr destaddr;
+        FILE*           output          = fopen("logfile", "w");
+        CnetAddr        dest; 
+        Msg_T           msg;
+        size_t          length;
 
-    length  = sizeof(msg);
-    CHECK(CNET_read_application(&destaddr, (char *)&msg, &length));
-    CHECK(CNET_disable_application(ALLNODES));
+        length	= sizeof(msg.data);
 
-    application_downto_transport(1, msg, &length);
+        fprintf(output, "sizeof(msg.data) = %zu", length);
+        fclose(output);
+                
+        CHECK(CNET_read_application(&dest, msg.data, &length));
+        CHECK(CNET_disable_application(ALLNODES));
+
+        if(length > 1) {			/* not just a blank msg? */
+                printf("\tsending %d bytes - \"%s\" to node: %d\n", length, 
+                                msg.data, dest);
+                application_downto_transport(dest, msg, length);
+                prompt(1);
+        }
+        else {
+                prompt(0);
+        }
 }
-*/
+
 
 
 
@@ -300,6 +312,7 @@ static void frame_arrived(CnetEvent ev, CnetTimerID timer, CnetData data)
                                         "src=%zu\n", 
                                         frame.seq, 
                                         frame.payload.src_addr);
+                        CNET_enable_application(ALLNODES);
                 }
                 break; 
         }
@@ -319,19 +332,18 @@ static void frame_arrived(CnetEvent ev, CnetTimerID timer, CnetData data)
 
 void reboot_host()
 {
-    /*  Indicate our interest in certain cnet events */
+        /*Indicate our interest in certain cnet events */
         printf("Initialising current node as a host.\n");
     
-    /* When everything is working properly, you can uncomment this to
-     * let the application layer generate the messages for you 
-     */
-        /*CHECK(CNET_set_handler( EV_APPLICATIONREADY, application_ready, 0));*/
+        /*When everything is working properly, you can uncomment this to*/
+        /*let the application layer generate the messages for you */
+        CHECK(CNET_set_handler( EV_APPLICATIONREADY, application_ready, 0));
 
         /* right now, read from the keyboard only */
-        CHECK(CNET_set_handler( EV_KEYBOARDREADY, keyboard, 0));
+        /*CHECK(CNET_set_handler( EV_KEYBOARDREADY, keyboard, 0));*/
         CHECK(CNET_set_handler( EV_PHYSICALREADY, frame_arrived, 0));
 
-    /* CNET_enable_application(ALLNODES);*/
+        CNET_enable_application(ALLNODES);
         prompt(1);
 }
 
