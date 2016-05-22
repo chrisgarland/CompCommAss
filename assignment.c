@@ -127,16 +127,12 @@ void transport_upto_application(int *link, char* msg, size_t length )
 
 static void application_ready(CnetEvent ev, CnetTimerID timer, CnetData data)
 {
-        FILE*           output          = fopen("logfile", "w");
         CnetAddr        dest; 
         Msg_T           msg;
         size_t          length;
 
         length	= sizeof(msg.data);
 
-        fprintf(output, "sizeof(msg.data) = %zu", length);
-        fclose(output);
-                
         CHECK(CNET_read_application(&dest, msg.data, &length));
         CHECK(CNET_disable_application(ALLNODES));
 

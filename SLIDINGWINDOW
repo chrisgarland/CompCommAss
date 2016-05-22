@@ -5,6 +5,7 @@ maxmessagesize          = 256bytes
 
 host Indonesia {
         x = 400, y = 200
+        outputfile = "logfile.%n"
         link to Australia
         link to Brunei
         link to Malaysia
@@ -12,29 +13,35 @@ host Indonesia {
 }
 
 host Australia {
+        outputfile = "logfile.%n"
         east east of Indonesia
         link to Fiji
         link to New_Zealand
 }
 
 host Brunei {
+        outputfile = "logfile.%n"
         north east of Indonesia
 }
 
 host Malaysia {
+        outputfile = "logfile.%n"
         north west west of Indonesia
         link to Singapore
 }
 
 host Singapore {
+        outputfile = "logfile.%n"
         west west west of Indonesia
 }
 
 host Fiji {
+        outputfile = "logfile.%n"
         north east of Australia
 }
 
 host New_Zealand {
+        outputfile = "logfile.%n"
         east of Australia
         link to Australia
 }
